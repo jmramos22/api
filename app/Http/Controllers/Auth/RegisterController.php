@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\Hash;
 
 class RegisterController extends Controller
 {
+    /**
+     * Registra una cuenta con los datos validados y entrega un token de acceso.
+     */
     public function register(RegisterRequest $request)
     {
         $user = User::create([

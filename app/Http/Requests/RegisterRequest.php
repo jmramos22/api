@@ -7,11 +7,17 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class RegisterRequest extends FormRequest
 {
+    /**
+     * Permite que la solicitud de registro llegue a la validación.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * Define los requisitos para los datos enviados al crear una cuenta.
+     */
     public function rules(): array
     {
         return [

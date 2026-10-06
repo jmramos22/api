@@ -12,12 +12,14 @@ Route::post('/login', [LoginController::class, 'login']);
 
 // Ruta para obtener las carreras activas (la usa el formulario de registro)
 Route::get('/carreras', function () {
+    // Devuelve solo carreras disponibles y en orden alfabético.
     return Carrera::where('activa', true)->orderBy('nombre')->get();
 });
 
 // Rutas protegidas (requieren token)
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
+        // Obtiene el usuario autenticado mediante el token de Sanctum.
         return $request->user();
     });
 

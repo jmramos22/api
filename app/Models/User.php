@@ -28,6 +28,9 @@ class User extends Authenticatable
         'password',
     ];
 
+    /**
+     * Convierte la contraseña a un hash al asignarla al modelo.
+     */
     protected function casts(): array
     {
         return [

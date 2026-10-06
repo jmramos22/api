@@ -7,20 +7,20 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Crea la tabla de carreras disponibles para asociar a las cuentas.
      */
-   public function up(): void
-{
-    Schema::create('carreras', function (Blueprint $table) {
-        $table->id();
-        $table->string('nombre')->unique();
-        $table->boolean('activa')->default(true); // Permite ocultar carreras sin borrarlas
-        $table->timestamps();
-    });
-}
+    public function up(): void
+    {
+        Schema::create('carreras', function (Blueprint $table) {
+            $table->id();
+            $table->string('nombre')->unique();
+            $table->boolean('activa')->default(true); // Permite ocultar carreras sin borrarlas
+            $table->timestamps();
+        });
+    }
 
     /**
-     * Reverse the migrations.
+     * Elimina la tabla de carreras al revertir esta migración.
      */
     public function down(): void
     {
