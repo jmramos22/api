@@ -27,6 +27,7 @@ class ProfileImageController extends Controller
         ]);
 
         $image = $validated['image'];
+        // getKey() extrae automáticamente tu 'id_usuario' de PostgreSQL
         $userId = (string) $request->user()->getKey();
 
         $write = new BulkWrite;
@@ -34,6 +35,7 @@ class ProfileImageController extends Controller
             ['user_id' => $userId],
             ['$set' => [
                 'user_id' => $userId,
+                // Guarda la imagen como código binario nativo en la base de datos
                 'image' => new Binary($image->getContent(), Binary::TYPE_GENERIC),
                 'mime_type' => $image->getMimeType(),
                 'updated_at' => new UTCDateTime,
@@ -106,19 +108,25 @@ class ProfileImageController extends Controller
         }
 
         $query = new Query(['user_id' => (string) $userId], ['limit' => 1]);
-        $cursor = $this->manager()->executeQuery($this->collection(), $query);
+        
+        try {
+            $cursor = $this->manager()->executeQuery($this->collection(), $query);
 
-        foreach ($cursor as $image) {
-            if (isset($image->image, $image->mime_type)) {
-                $path = URL::temporarySignedRoute(
-                    'api.user.image.show',
-                    now()->addDays(7),
-                    ['userId' => (string) $userId],
-                    false,
-                );
+            foreach ($cursor as $image) {
+                if (isset($image->image, $image->mime_type)) {
+                    $path = URL::temporarySignedRoute(
+                        'api.user.image.show',
+                        now()->addDays(7),
+                        ['userId' => (string) $userId],
+                        false,
+                    );
 
-                return $request->getSchemeAndHttpHost().$path;
+                    return $request->getSchemeAndHttpHost().$path;
+                }
             }
+        } catch (\Exception $e) {
+            // Si MongoDB falla temporalmente, devolvemos null en lugar de colapsar la página web
+            return null;
         }
 
         return null;
@@ -126,20 +134,15 @@ class ProfileImageController extends Controller
 
     private function manager(): Manager
     {
-        $config = config('mongodb');
-        $options = [];
-
-        if ($config['username'] !== null && $config['username'] !== '') {
-            $options['username'] = $config['username'];
-            $options['password'] = $config['password'];
-            $options['authSource'] = $config['auth_source'];
-        }
-
-        return new Manager($config['uri'], $options);
+        // Forzamos a que lea la conexión desde tu archivo .env
+        $uri = env('MONGODB_URI', 'mongodb://127.0.0.1:27017');
+        return new Manager($uri);
     }
 
     private function collection(): string
     {
-        return config('mongodb.database').'.'.config('mongodb.collection');
+        // Forzamos a que lea el nombre de la BD desde tu archivo .env
+        $db = env('MONGODB_DATABASE', 'tutorias_uas_docs');
+        return $db . '.profile_images';
     }
 }

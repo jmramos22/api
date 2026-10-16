@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\UpdatePasswordController;
 use App\Http\Controllers\ProfileImageController;
+use App\Http\Controllers\AdminController;
 use App\Models\Carrera;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -37,4 +38,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/user/image', [ProfileImageController::class, 'destroy']);
     Route::put('/user/password', [UpdatePasswordController::class, 'update']);
     Route::post('/logout', [LoginController::class, 'logout']);
+
+
+    // ==========================================
+    // RUTAS DE ADMINISTRADOR (HU-05)
+    // ==========================================
+    Route::get('/admin/carreras', [AdminController::class, 'listCarreras']);
+    Route::post('/admin/carreras', [AdminController::class, 'storeCarrera']);
+    Route::put('/admin/carreras/{id}', [AdminController::class, 'updateCarrera']);
+    
+    Route::get('/admin/users', [AdminController::class, 'listUsers']);
+    Route::put('/admin/users/{idUsuario}/rol', [AdminController::class, 'updateUserRole']);
+
 });
