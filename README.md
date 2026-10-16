@@ -21,6 +21,31 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Fotos de perfil
+
+La API recibe la foto autenticada en `POST /api/user/image` como multipart/form-data con el campo `image` (JPG, PNG o WebP; máximo 5 MB). El binario se guarda en MongoDB, en la colección `profile_images`; `GET /api/user` devuelve `image_url` cuando el usuario ya tiene una foto. La URL es temporal y firmada. `DELETE /api/user/image` elimina la foto del usuario autenticado.
+
+Configura `MONGO_HOST`, `MONGO_PORT`, `MONGO_DATABASE`, `MONGO_USERNAME` y `MONGO_PASSWORD` en el entorno de la API. `MONGO_AUTH_SOURCE` es opcional y por defecto usa `MONGO_DATABASE`. En Docker, la imagen PHP ya incluye la extensión `mongodb`; si ejecutas Laravel directamente en Windows, instala y habilita esa extensión para la versión de PHP utilizada.
+
+## Cambio de contraseña
+
+`PUT /api/user/password` requiere un token Bearer de Sanctum y recibe `current_password`, `password` y `password_confirmation` como JSON. La nueva contraseña debe tener al menos 8 caracteres y coincidir con su confirmación.
+
+## Integración con la aplicación web
+
+Las plantillas y rutas de las pantallas viven en el proyecto `web`. Este proyecto API entrega los datos y procesa las operaciones que esas pantallas consumen; no es necesario duplicar las vistas Blade en la API.
+
+| Pantalla en web | Operación API |
+|---|---|
+| Inicio de sesión | `POST /api/login` |
+| Registro | `GET /api/carreras`, `POST /api/register` |
+| Perfil y panel | `GET /api/user` |
+| Fotografía de perfil | `POST /api/user/image`, `DELETE /api/user/image` |
+| Seguridad de la cuenta | `PUT /api/user/password` |
+| Cierre de sesión | `POST /api/logout` |
+
+Configura `API_BASE_URL` en el entorno del proyecto web con la URL base de esta API, accesible desde el navegador. Por ejemplo, para desarrollo local: `http://127.0.0.1:8001`. En la API, `CORS_ALLOWED_ORIGINS` acepta una lista de orígenes web separada por comas; si no se configura, se permiten los orígenes locales `http://localhost:8000` y `http://127.0.0.1:8000`. La búsqueda de tutores y las consultas de solicitudes/sesiones del panel estudiantil todavía requieren sus endpoints y no se implementan en esta integración.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\RegisterRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class RegisterController extends Controller
 {
@@ -14,11 +15,17 @@ class RegisterController extends Controller
      */
     public function register(RegisterRequest $request)
     {
+        $password = $request->input('password');
+
+        if (blank($password)) {
+            $password = Str::random(12);
+        }
+
         $user = User::create([
             'nombre' => $request->nombre,
             'apellido' => $request->apellido,
             'correo_institucional' => $request->correo_institucional,
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($password),
             'carrera' => $request->carrera,
             'rol' => 'ESTUDIANTE',
         ]);
@@ -28,6 +35,7 @@ class RegisterController extends Controller
         return response()->json([
             'message' => 'Usuario registrado exitosamente.',
             'token' => $token,
+            'generated_password' => $password,
             'user' => $user,
         ], 201);
     }

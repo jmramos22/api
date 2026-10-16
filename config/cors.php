@@ -1,5 +1,7 @@
 <?php
 
+$allowedOrigins = env('CORS_ALLOWED_ORIGINS');
+
 return [
 
     /*
@@ -12,10 +14,12 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [
-        'http://localhost:8000',
-        'http://127.0.0.1:8000',
-    ],
+    'allowed_origins' => $allowedOrigins
+        ? array_values(array_filter(array_map('trim', explode(',', $allowedOrigins))))
+        : [
+            'http://localhost:8000',
+            'http://127.0.0.1:8000',
+        ],
 
     'allowed_origins_patterns' => [],
 

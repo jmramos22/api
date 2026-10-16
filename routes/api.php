@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\UpdatePasswordController;
+use App\Http\Controllers\ProfileImageController;
 use App\Models\Carrera;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -16,12 +18,23 @@ Route::get('/carreras', function () {
     return Carrera::where('activa', true)->orderBy('nombre')->get();
 });
 
+Route::get('/user/image/{userId}', [ProfileImageController::class, 'show'])
+    ->middleware('signed:relative')
+    ->name('api.user.image.show');
+
 // Rutas protegidas (requieren token)
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user', function (Request $request) {
+    Route::get('/user', function (Request $request, ProfileImageController $images) {
         // Obtiene el usuario autenticado mediante el token de Sanctum.
-        return $request->user();
+        $user = $request->user();
+        $data = $user->toArray();
+        $data['image_url'] = $images->urlFor($request, $user->getKey());
+
+        return response()->json($data);
     });
 
+    Route::post('/user/image', [ProfileImageController::class, 'store']);
+    Route::delete('/user/image', [ProfileImageController::class, 'destroy']);
+    Route::put('/user/password', [UpdatePasswordController::class, 'update']);
     Route::post('/logout', [LoginController::class, 'logout']);
 });

@@ -27,7 +27,7 @@ class RegisterRequest extends FormRequest
                 'required',
                 'email',
                 'unique:users,correo_institucional',
-                'regex:/^[a-zA-Z0-9._%+-]+@uas\.edu\.mx$/i'
+                'regex:/^[a-zA-Z0-9._%+-]+@uas\.edu\.mx$/i',
             ],
             'password' => 'required|string|min:8',
             'carrera' => ['required', 'string', 'exists:carreras,nombre'],
