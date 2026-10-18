@@ -23,7 +23,7 @@ class LoginController extends Controller
         $email = strtolower(trim((string) $credentials['correo_institucional']));
         $user = User::whereRaw('LOWER(correo_institucional) = ?', [$email])->first();
 
-        if (! $user || ! Hash::check((string) $credentials['password'], (string) $user->password)) {
+        if (! $user || ! $user->is_active || ! Hash::check((string) $credentials['password'], (string) $user->password)) {
             return response()->json([
                 'message' => 'Las credenciales proporcionadas no coinciden con nuestros registros.',
                 'errors' => [

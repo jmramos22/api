@@ -6,6 +6,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -22,6 +23,7 @@ class User extends Authenticatable
         'password',
         'carrera',
         'rol',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -35,6 +37,12 @@ class User extends Authenticatable
     {
         return [
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
+    }
+
+    public function tutorApplication(): HasOne
+    {
+        return $this->hasOne(TutorApplication::class, 'student_id', 'id_usuario');
     }
 }
