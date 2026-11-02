@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -44,5 +45,10 @@ class User extends Authenticatable
     public function tutorApplication(): HasOne
     {
         return $this->hasOne(TutorApplication::class, 'student_id', 'id_usuario');
+    }
+
+    public function disponibilidadesTutor(): HasMany
+    {
+        return $this->hasMany(DisponibilidadTutor::class, 'tutor_id', 'id_usuario');
     }
 }

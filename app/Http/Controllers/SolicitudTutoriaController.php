@@ -49,6 +49,10 @@ class SolicitudTutoriaController extends Controller
             'tutores' => User::query()
                 ->where('rol', 'TUTOR')
                 ->where('carrera', $career->nombre)
+                ->whereHas('disponibilidadesTutor', fn ($query) => $query
+                    ->where('inicio', '>', now())
+                    ->whereDoesntHave('solicitudes', fn ($requestQuery) => $requestQuery
+                        ->whereIn('estado', ['PENDIENTE', 'ACEPTADA'])))
                 ->orderBy('nombre')
                 ->get(['id_usuario', 'nombre', 'apellido'])
                 ->map(fn (User $tutor) => [
@@ -112,6 +116,7 @@ class SolicitudTutoriaController extends Controller
                 'estudiante:id_usuario,nombre,apellido',
                 'tutor:id_usuario,nombre,apellido',
                 'materia:id,nombre',
+                'disponibilidad:id,inicio,fin',
             ])
             ->latest();
 
@@ -134,51 +139,68 @@ class SolicitudTutoriaController extends Controller
         $this->requireRole($request, 'ESTUDIANTE');
 
         $validated = $request->validate([
-            'tutor_id' => [
-                'required',
-                'integer',
-                Rule::exists('users', 'id_usuario')->where('rol', 'TUTOR'),
-            ],
+            'disponibilidad_id' => ['required', 'integer', Rule::exists('disponibilidades_tutor', 'id')],
             'materia_id' => [
                 'required',
                 'integer',
                 Rule::exists('materias', 'id'),
             ],
-            'fecha_hora' => ['required', 'date', 'after:now'],
             'mensaje' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $career = Carrera::query()
-            ->where('nombre', $request->user()->carrera)
-            ->where('activa', true)
-            ->firstOrFail();
-        $materiaIsAvailable = Materia::query()
-            ->whereKey($validated['materia_id'])
-            ->where('activa', true)
-            ->whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))
-            ->exists();
-        if (! $materiaIsAvailable) {
-            throw ValidationException::withMessages([
-                'materia_id' => 'Selecciona una materia activa de la carrera asociada a tu cuenta.',
-            ]);
-        }
+        $solicitud = DB::transaction(function () use ($request, $validated): SolicitudTutoria {
+            $availability = \App\Models\DisponibilidadTutor::query()
+                ->lockForUpdate()
+                ->findOrFail($validated['disponibilidad_id']);
+            $student = $request->user();
+            $tutor = User::query()->findOrFail($availability->tutor_id);
+            $career = Carrera::query()
+                ->where('nombre', $student->carrera)
+                ->where('activa', true)
+                ->firstOrFail();
+            $materiaIsAvailable = Materia::query()
+                ->whereKey($validated['materia_id'])
+                ->where('activa', true)
+                ->whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))
+                ->exists();
 
-        $tutorIsRegisteredInCareer = User::query()
-            ->where('id_usuario', $validated['tutor_id'])
-            ->where('rol', 'TUTOR')
-            ->where('carrera', $career->nombre)
-            ->exists();
-        if (! $tutorIsRegisteredInCareer) {
-            throw ValidationException::withMessages([
-                'tutor_id' => 'El tutor seleccionado no está registrado en tu carrera.',
-            ]);
-        }
+            if (! $materiaIsAvailable) {
+                throw ValidationException::withMessages([
+                    'materia_id' => 'Selecciona una materia activa de la carrera asociada a tu cuenta.',
+                ]);
+            }
 
-        $solicitud = SolicitudTutoria::create([
-            ...$validated,
-            'estudiante_id' => $request->user()->id_usuario,
-            'estado' => 'PENDIENTE',
-        ]);
+            if ($tutor->rol !== 'TUTOR' || $tutor->carrera !== $career->nombre) {
+                throw ValidationException::withMessages([
+                    'disponibilidad_id' => 'Selecciona un horario de un tutor de tu carrera.',
+                ]);
+            }
+
+            if ($availability->inicio->isPast()) {
+                throw ValidationException::withMessages([
+                    'disponibilidad_id' => 'Ese horario ya no está disponible.',
+                ]);
+            }
+
+            $alreadyReserved = $availability->solicitudes()
+                ->whereIn('estado', ['PENDIENTE', 'ACEPTADA'])
+                ->exists();
+            if ($alreadyReserved) {
+                throw ValidationException::withMessages([
+                    'disponibilidad_id' => 'Ese horario acaba de ser reservado. Elige otro horario disponible.',
+                ]);
+            }
+
+            return SolicitudTutoria::query()->create([
+                'estudiante_id' => $student->id_usuario,
+                'tutor_id' => $tutor->id_usuario,
+                'materia_id' => $validated['materia_id'],
+                'disponibilidad_id' => $availability->id,
+                'fecha_hora' => $availability->inicio,
+                'mensaje' => $validated['mensaje'] ?? null,
+                'estado' => 'PENDIENTE',
+            ]);
+        });
 
         return response()->json([
             'message' => 'La solicitud de tutoría se envió correctamente.',
@@ -186,6 +208,7 @@ class SolicitudTutoriaController extends Controller
                 'estudiante:id_usuario,nombre,apellido',
                 'tutor:id_usuario,nombre,apellido',
                 'materia:id,nombre',
+                'disponibilidad:id,inicio,fin',
             ]),
         ], 201);
     }

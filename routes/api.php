@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\UpdatePasswordController;
 use App\Http\Controllers\ProfileImageController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\SolicitudTutoriaController;
+use App\Http\Controllers\DisponibilidadTutorController;
 use App\Http\Controllers\TutorApplicationController;
 use App\Models\Carrera;
 use Illuminate\Http\Request;
@@ -55,24 +56,34 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/tutor-applications/{application}/kardex', [TutorApplicationController::class, 'downloadKardex']);
     Route::patch('/admin/tutor-applications/{application}', [TutorApplicationController::class, 'decide']);
     
-    // Rutas para la gestión de solicitudes de tutoría
+    // Rutas para la gestión de solicitudes de tutoría por parte de los estudiantes y tutores
     Route::get('/tutoring/options', [SolicitudTutoriaController::class, 'opciones']);
     Route::get('/tutoring/profile', [SolicitudTutoriaController::class, 'perfilTutor']);
+    
+    // Rutas para la gestión de solicitudes de tutoría
     Route::get('/tutoring/requests', [SolicitudTutoriaController::class, 'index']);
     Route::post('/tutoring/requests', [SolicitudTutoriaController::class, 'store']);
     Route::patch('/tutoring/requests/{solicitud}/status', [SolicitudTutoriaController::class, 'updateEstado']);
     Route::post('/tutoring/requests/{solicitud}/rating', [SolicitudTutoriaController::class, 'calificar']);
+   
+    // Rutas para la gestión de disponibilidad de tutores
+    Route::get('/tutoring/availability', [DisponibilidadTutorController::class, 'index']);
+    Route::post('/tutoring/availability', [DisponibilidadTutorController::class, 'store']);
+    Route::delete('/tutoring/availability/{disponibilidad}', [DisponibilidadTutorController::class, 'destroy']);
+    Route::get('/tutoring/tutors/{tutor}/availability', [DisponibilidadTutorController::class, 'availableForStudent']);
 
 
     // ==========================================
     // RUTAS DE ADMINISTRADOR (HU-05)
     // ==========================================
+    // Rutas para la gestión de carreras y materias
     Route::get('/admin/carreras', [AdminController::class, 'listCarreras']);
     Route::post('/admin/carreras', [AdminController::class, 'storeCarrera']);
     Route::put('/admin/carreras/{id}', [AdminController::class, 'updateCarrera']);
     Route::delete('/admin/carreras/{id}', [AdminController::class, 'destroyCarrera']);
     Route::patch('/admin/materias/{materia}/status', [AdminController::class, 'updateMateriaStatus']);
     
+    // Rutas para la gestión de usuarios
     Route::get('/admin/users', [AdminController::class, 'listUsers']);
     Route::put('/admin/users/{idUsuario}/rol', [AdminController::class, 'updateUserRole']);
     Route::patch('/admin/users/{idUsuario}/status', [AdminController::class, 'updateUserStatus']);

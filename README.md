@@ -43,7 +43,7 @@ Las plantillas y rutas de las pantallas viven en el proyecto `web`. Este proyect
 | Fotografía de perfil | `POST /api/user/image`, `DELETE /api/user/image` |
 | Seguridad de la cuenta | `PUT /api/user/password` |
 | Cierre de sesión | `POST /api/logout` |
-| Solicitudes de tutoría | `GET /api/tutoring/options`, `POST /api/tutoring/requests`, `GET /api/tutoring/requests`, `PATCH /api/tutoring/requests/{id}/status`, `POST /api/tutoring/requests/{id}/rating` |
+| Disponibilidad y solicitudes de tutoría | `GET/POST /api/tutoring/availability`, `DELETE /api/tutoring/availability/{id}`, `GET /api/tutoring/tutors/{id}/availability`, `GET /api/tutoring/options`, `POST /api/tutoring/requests`, `GET /api/tutoring/requests`, `PATCH /api/tutoring/requests/{id}/status`, `POST /api/tutoring/requests/{id}/rating` |
 
 Configura `API_BASE_URL` en el entorno del proyecto web con la URL base de esta API, accesible desde el navegador. Por ejemplo, para desarrollo local: `http://127.0.0.1:8001`. En la API, `CORS_ALLOWED_ORIGINS` acepta una lista de orígenes web separada por comas; si no se configura, se permiten los orígenes locales `http://localhost:8000` y `http://127.0.0.1:8000`.
 
@@ -63,13 +63,15 @@ Un estudiante consulta el estado de su postulación con `GET /api/tutoring/appli
 
 Ejecuta `php artisan migrate` para crear la tabla `solicitudes_tutoria`. Todas las rutas de solicitudes requieren un token Bearer de Sanctum:
 
-- Estudiante: `GET /api/tutoring/options` devuelve materias activas y tutores; `POST /api/tutoring/requests` crea una solicitud con `tutor_id`, `materia_id`, `fecha_hora` futura y `mensaje` opcional. `GET /api/tutoring/requests` lista solo sus propias solicitudes.
+- Tutor: `POST /api/tutoring/availability` publica un bloque futuro con `inicio` y `fin` (fecha y hora local de Mazatlán); los intervalos no pueden traslaparse. `GET /api/tutoring/availability` lista sus bloques futuros y el número de bloques libres; `DELETE /api/tutoring/availability/{id}` elimina un bloque que no esté reservado.
+- Estudiante: `GET /api/tutoring/options` devuelve materias activas y tutores con bloques libres. `GET /api/tutoring/tutors/{id}/availability` lista los bloques libres de un tutor de su carrera; `POST /api/tutoring/requests` recibe `disponibilidad_id`, `materia_id` y `mensaje` opcional. La API enlaza la solicitud al tutor y al inicio del bloque y reserva el bloque mientras la solicitud esté pendiente o aceptada.
+- Estudiante: `GET /api/tutoring/requests` lista solo sus propias solicitudes, incluyendo el inicio y fin del bloque reservado cuando aplique.
 - Tutor: la misma ruta GET devuelve solo las solicitudes asignadas. Puede aceptar una solicitud pendiente si su fecha aún es futura, rechazar solicitudes pendientes y cambiar de `ACEPTADA` a `COMPLETADA`.
 - Estudiante: puede cambiar `estado` de `PENDIENTE` a `CANCELADA`; también puede cancelar una solicitud aceptada mientras la fecha solicitada siga en el futuro.
 - Estudiante: puede calificar una tutoría `COMPLETADA` una sola vez con un valor del 1 al 5 y un comentario opcional de hasta 1000 caracteres.
 - Administrador: la ruta GET devuelve todas las solicitudes para supervisión. El administrador no altera los estados; las decisiones pertenecen al tutor y al estudiante.
 
-La fecha y hora son una propuesta del estudiante: esta versión no comprueba disponibilidad de agenda ni bloquea horarios porque el sistema todavía no cuenta con un catálogo de horarios de tutores.
+Las solicitudes pendientes y sesiones aceptadas reservan el bloque. Una cancelación o rechazo lo libera; las solicitudes históricas conservan su fecha aunque se elimine un bloque libre.
 
 ## Baja de cuentas
 

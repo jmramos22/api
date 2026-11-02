@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Carrera;
+use App\Models\DisponibilidadTutor;
 use App\Models\Materia;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,6 +24,8 @@ class TutorWorkflowTest extends TestCase
         $informaticsTutor = $this->createUser('TUTOR', 'informatics-tutor@uas.edu.mx', $informatics->nombre);
         $dataScienceTutor = $this->createUser('TUTOR', 'data-tutor@uas.edu.mx', $dataScience->nombre);
         $informaticsTutorToken = $informaticsTutor->createToken('tutor')->plainTextToken;
+        $informaticsSlot = $this->createAvailability($informaticsTutor);
+        $dataScienceSlot = $this->createAvailability($dataScienceTutor);
         $informaticsSubject = Materia::whereHas('semestre', fn ($query) => $query->where('carrera_id', $informatics->id))->firstOrFail();
         $dataScienceSubject = Materia::whereHas('semestre', fn ($query) => $query->where('carrera_id', $dataScience->id))->firstOrFail();
         $token = $student->createToken('student')->plainTextToken;
@@ -39,9 +42,8 @@ class TutorWorkflowTest extends TestCase
             ->assertJsonPath('temas_dominados', null);
 
         $payload = [
-            'tutor_id' => $informaticsTutor->id_usuario,
+            'disponibilidad_id' => $informaticsSlot->id,
             'materia_id' => $informaticsSubject->id,
-            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
         ];
         $this->withFreshToken($token)->postJson('/api/tutoring/requests', $payload)
             ->assertCreated()
@@ -53,10 +55,92 @@ class TutorWorkflowTest extends TestCase
             ->assertJsonValidationErrors('materia_id');
 
         $payload['materia_id'] = $informaticsSubject->id;
-        $payload['tutor_id'] = $dataScienceTutor->id_usuario;
+        $payload['disponibilidad_id'] = $dataScienceSlot->id;
         $this->withFreshToken($token)->postJson('/api/tutoring/requests', $payload)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('tutor_id');
+            ->assertJsonValidationErrors('disponibilidad_id');
+    }
+
+    public function test_tutor_availability_can_be_published_reserved_released_and_deleted(): void
+    {
+        $career = Carrera::where('nombre', 'Licenciatura en Informática')->firstOrFail();
+        $student = $this->createUser('ESTUDIANTE', 'student@uas.edu.mx', $career->nombre);
+        $tutor = $this->createUser('TUTOR', 'tutor@uas.edu.mx', $career->nombre);
+        $subject = Materia::whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))->firstOrFail();
+        $studentToken = $student->createToken('student')->plainTextToken;
+        $tutorToken = $tutor->createToken('tutor')->plainTextToken;
+        $start = now()->addDays(3)->setTime(15, 0);
+
+        $availabilityId = $this->withFreshToken($tutorToken)
+            ->postJson('/api/tutoring/availability', [
+                'inicio' => $start->format('Y-m-d\TH:i'),
+                'fin' => $start->copy()->addHour()->format('Y-m-d\TH:i'),
+            ])
+            ->assertCreated()
+            ->json('disponibilidad.id');
+
+        $this->withFreshToken($tutorToken)
+            ->postJson('/api/tutoring/availability', [
+                'inicio' => $start->copy()->addMinutes(30)->format('Y-m-d\TH:i'),
+                'fin' => $start->copy()->addHours(2)->format('Y-m-d\TH:i'),
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('inicio');
+
+        $this->withFreshToken($tutorToken)->getJson('/api/tutoring/availability')
+            ->assertOk()
+            ->assertJsonPath('horarios_libres', 1)
+            ->assertJsonPath('disponibilidades.0.libre', true);
+
+        $this->withFreshToken($studentToken)
+            ->getJson("/api/tutoring/tutors/{$tutor->id_usuario}/availability")
+            ->assertOk()
+            ->assertJsonCount(1, 'disponibilidades')
+            ->assertJsonPath('disponibilidades.0.id', $availabilityId);
+
+        $requestId = $this->withFreshToken($studentToken)
+            ->postJson('/api/tutoring/requests', [
+                'disponibilidad_id' => $availabilityId,
+                'materia_id' => $subject->id,
+            ])
+            ->assertCreated()
+            ->assertJsonPath('solicitud.disponibilidad_id', $availabilityId)
+            ->json('solicitud.id');
+        $this->assertDatabaseHas('solicitudes_tutoria', [
+            'id' => $requestId,
+            'fecha_hora' => $start->format('Y-m-d H:i:s'),
+        ]);
+
+        $this->withFreshToken($tutorToken)->getJson('/api/tutoring/availability')
+            ->assertOk()
+            ->assertJsonPath('horarios_libres', 0)
+            ->assertJsonPath('disponibilidades.0.libre', false);
+
+        $this->withFreshToken($studentToken)
+            ->postJson('/api/tutoring/requests', [
+                'disponibilidad_id' => $availabilityId,
+                'materia_id' => $subject->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('disponibilidad_id');
+
+        $this->withFreshToken($tutorToken)
+            ->deleteJson("/api/tutoring/availability/{$availabilityId}")
+            ->assertStatus(409);
+
+        $this->withFreshToken($tutorToken)
+            ->patchJson("/api/tutoring/requests/{$requestId}/status", ['estado' => 'RECHAZADA'])
+            ->assertOk();
+
+        $this->withFreshToken($studentToken)
+            ->getJson("/api/tutoring/tutors/{$tutor->id_usuario}/availability")
+            ->assertOk()
+            ->assertJsonCount(1, 'disponibilidades');
+
+        $this->withFreshToken($tutorToken)
+            ->deleteJson("/api/tutoring/availability/{$availabilityId}")
+            ->assertOk();
+        $this->assertDatabaseMissing('disponibilidades_tutor', ['id' => $availabilityId]);
     }
 
     public function test_admin_can_deactivate_a_subject_and_students_cannot_request_or_offer_it(): void
@@ -66,6 +150,7 @@ class TutorWorkflowTest extends TestCase
         $tutor = $this->createUser('TUTOR', 'tutor@uas.edu.mx', $career->nombre);
         $admin = $this->createUser('ADMIN', 'admin@uas.edu.mx');
         $subject = Materia::whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))->firstOrFail();
+        $availability = $this->createAvailability($tutor);
         $studentToken = $student->createToken('student')->plainTextToken;
         $adminToken = $admin->createToken('admin')->plainTextToken;
 
@@ -82,9 +167,8 @@ class TutorWorkflowTest extends TestCase
         $this->assertNotContains($subject->id, $availableSubjectIds);
 
         $this->withFreshToken($studentToken)->postJson('/api/tutoring/requests', [
-            'tutor_id' => $tutor->id_usuario,
+            'disponibilidad_id' => $availability->id,
             'materia_id' => $subject->id,
-            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('materia_id');
 
@@ -214,6 +298,17 @@ class TutorWorkflowTest extends TestCase
             'password' => Hash::make('correct-password'),
             'carrera' => $career,
             'rol' => $role,
+        ]);
+    }
+
+    private function createAvailability(User $tutor): DisponibilidadTutor
+    {
+        $start = now()->addDays(3)->setTime(14, 0);
+
+        return DisponibilidadTutor::create([
+            'tutor_id' => $tutor->id_usuario,
+            'inicio' => $start,
+            'fin' => $start->copy()->addHour(),
         ]);
     }
 

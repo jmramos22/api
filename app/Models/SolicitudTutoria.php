@@ -22,6 +22,7 @@ class SolicitudTutoria extends Model
         'tutor_id',
         'materia_id',
         'fecha_hora',
+        'disponibilidad_id',
         'mensaje',
         'estado',
         'calificacion',
@@ -52,5 +53,10 @@ class SolicitudTutoria extends Model
     public function materia(): BelongsTo
     {
         return $this->belongsTo(Materia::class, 'materia_id');
+    }
+
+    public function disponibilidad(): BelongsTo
+    {
+        return $this->belongsTo(DisponibilidadTutor::class, 'disponibilidad_id');
     }
 }

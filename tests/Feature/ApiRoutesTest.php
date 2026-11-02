@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\ProfileImageController;
 use App\Models\Carrera;
+use App\Models\DisponibilidadTutor;
 use App\Models\Materia;
 use App\Models\SolicitudTutoria;
 use App\Models\TutorApplication;
@@ -359,6 +360,7 @@ class ApiRoutesTest extends TestCase
         $tutor = $this->createUser('TUTOR', 'tutor@uas.edu.mx');
         $admin = $this->createUser('ADMIN', 'admin@uas.edu.mx');
         $subject = $this->createSubject('Álgebra');
+        $availability = $this->createAvailability($tutor);
 
         $studentToken = $student->createToken('student')->plainTextToken;
         $otherStudentToken = $otherStudent->createToken('other-student')->plainTextToken;
@@ -366,9 +368,8 @@ class ApiRoutesTest extends TestCase
         $adminToken = $admin->createToken('admin')->plainTextToken;
 
         $response = $this->withFreshToken($studentToken)->postJson('/api/tutoring/requests', [
-            'tutor_id' => $tutor->id_usuario,
+            'disponibilidad_id' => $availability->id,
             'materia_id' => $subject->id,
-            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
             'mensaje' => 'Necesito repasar ecuaciones.',
         ]);
 
@@ -433,30 +434,31 @@ class ApiRoutesTest extends TestCase
         $anotherTutorToken = $anotherTutor->createToken('other-tutor')->plainTextToken;
         $adminToken = $admin->createToken('admin')->plainTextToken;
 
+        $tutorAvailability = $this->createAvailability($tutor);
+        $otherTutorAvailability = $this->createAvailability($anotherTutor);
         $this->withFreshToken($studentToken)->getJson('/api/tutoring/options')
             ->assertOk()
             ->assertJsonCount(1, 'materias')
             ->assertJsonCount(2, 'tutores');
 
         $invalidRequest = [
-            'tutor_id' => $tutor->id_usuario,
+            'disponibilidad_id' => $tutorAvailability->id,
             'materia_id' => $inactiveSubject->id,
-            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
         ];
         $this->withFreshToken($studentToken)->postJson('/api/tutoring/requests', $invalidRequest)
             ->assertUnprocessable()
             ->assertJsonValidationErrors('materia_id');
 
         $invalidRequest['materia_id'] = $subject->id;
-        $invalidRequest['tutor_id'] = $student->id_usuario;
+        $invalidRequest['disponibilidad_id'] = $otherTutorAvailability->id;
+        $anotherTutor->update(['carrera' => 'Otra carrera']);
         $this->withFreshToken($studentToken)->postJson('/api/tutoring/requests', $invalidRequest)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('tutor_id');
+            ->assertJsonValidationErrors('disponibilidad_id');
 
         $validRequest = [
-            'tutor_id' => $tutor->id_usuario,
+            'disponibilidad_id' => $tutorAvailability->id,
             'materia_id' => $subject->id,
-            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
         ];
         $requestId = $this->withFreshToken($studentToken)
             ->postJson('/api/tutoring/requests', $validRequest)
@@ -524,12 +526,12 @@ class ApiRoutesTest extends TestCase
         $student = $this->createUser('ESTUDIANTE', 'ana@uas.edu.mx');
         $tutor = $this->createUser('TUTOR', 'tutor@uas.edu.mx');
         $subject = $this->createSubject('Álgebra');
+        $availability = $this->createAvailability($tutor);
         $studentToken = $student->createToken('student')->plainTextToken;
         $tutorToken = $tutor->createToken('tutor')->plainTextToken;
         $requestData = [
-            'tutor_id' => $tutor->id_usuario,
+            'disponibilidad_id' => $availability->id,
             'materia_id' => $subject->id,
-            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
         ];
 
         $cancelledId = $this->withFreshToken($studentToken)
@@ -640,6 +642,17 @@ class ApiRoutesTest extends TestCase
             'password' => Hash::make('correct-password'),
             'carrera' => 'Actuaría',
             'rol' => $role,
+        ]);
+    }
+
+    private function createAvailability(User $tutor): DisponibilidadTutor
+    {
+        $start = now()->addDays(3)->setTime(14, 0);
+
+        return DisponibilidadTutor::create([
+            'tutor_id' => $tutor->id_usuario,
+            'inicio' => $start,
+            'fin' => $start->copy()->addHour(),
         ]);
     }
 
