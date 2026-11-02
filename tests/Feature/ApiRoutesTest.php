@@ -6,6 +6,7 @@ use App\Http\Controllers\ProfileImageController;
 use App\Models\Carrera;
 use App\Models\Materia;
 use App\Models\SolicitudTutoria;
+use App\Models\TutorApplication;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -168,6 +169,66 @@ class ApiRoutesTest extends TestCase
         ->assertJsonValidationErrors('semestres.1.numero');
     }
 
+    public function test_admin_can_delete_an_unreferenced_career_and_preserve_tutoring_history(): void
+    {
+        $admin = $this->createUser('ADMIN', 'admin@uas.edu.mx');
+        $student = $this->createUser('ESTUDIANTE', 'student@uas.edu.mx');
+        $tutor = $this->createUser('TUTOR', 'tutor@uas.edu.mx');
+        $career = Carrera::create(['nombre' => 'Carrera para eliminar', 'activa' => true]);
+        $semester = $career->semestres()->create(['numero' => 1]);
+        $subject = $semester->materias()->create(['nombre' => 'Materia histórica']);
+        $request = SolicitudTutoria::create([
+            'estudiante_id' => $student->id_usuario,
+            'tutor_id' => $tutor->id_usuario,
+            'materia_id' => $subject->id,
+            'fecha_hora' => now()->addDays(2),
+            'estado' => 'PENDIENTE',
+        ]);
+        $token = $admin->createToken('admin')->plainTextToken;
+
+        $this->withToken($token)->deleteJson("/api/admin/carreras/{$career->id}")
+            ->assertOk()
+            ->assertJsonPath('message', 'La carrera y su plan de estudios se eliminaron correctamente.');
+
+        $this->assertDatabaseMissing('carreras', ['id' => $career->id]);
+        $this->assertDatabaseMissing('semestres', ['id' => $semester->id]);
+        $this->assertDatabaseMissing('materias', ['id' => $subject->id]);
+        $this->assertDatabaseHas('solicitudes_tutoria', [
+            'id' => $request->id,
+            'materia_id' => null,
+            'materia_nombre' => 'Materia histórica',
+        ]);
+    }
+
+    public function test_admin_cannot_delete_a_career_with_linked_users_or_tutor_applications(): void
+    {
+        $admin = $this->createUser('ADMIN', 'admin@uas.edu.mx');
+        $career = Carrera::create(['nombre' => 'Carrera vinculada', 'activa' => true]);
+        $student = $this->createUser('ESTUDIANTE', 'student@uas.edu.mx');
+        $student->update(['carrera' => $career->nombre]);
+        $token = $admin->createToken('admin')->plainTextToken;
+
+        $this->withToken($token)->deleteJson("/api/admin/carreras/{$career->id}")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'No se puede eliminar esta carrera porque hay cuentas de usuario asociadas. Puedes desactivarla en su lugar.');
+        $this->assertDatabaseHas('carreras', ['id' => $career->id]);
+
+        $student->update(['carrera' => 'Licenciatura en Informática']);
+        $semester = $career->semestres()->create(['numero' => 1]);
+        $subject = $semester->materias()->create(['nombre' => 'Materia ofertada']);
+        $application = TutorApplication::create([
+            'student_id' => $student->id_usuario,
+            'kardex_path' => 'tutor-applications/kardex.pdf',
+            'status' => 'RECHAZADA',
+        ]);
+        $application->materias()->attach($subject->id);
+
+        $this->withFreshToken($token)->deleteJson("/api/admin/carreras/{$career->id}")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'No se puede eliminar esta carrera porque hay postulaciones de tutor vinculadas con sus materias. Puedes desactivarla en su lugar.');
+        $this->assertDatabaseHas('carreras', ['id' => $career->id]);
+    }
+
     public function test_admin_cannot_deactivate_their_own_account(): void
     {
         $admin = $this->createUser('ADMIN', 'admin@uas.edu.mx');
@@ -191,10 +252,12 @@ class ApiRoutesTest extends TestCase
         $this->deleteJson('/api/user/image')->assertUnauthorized();
         $this->putJson('/api/user/password')->assertUnauthorized();
         $this->postJson('/api/logout')->assertUnauthorized();
+        $this->deleteJson('/api/admin/carreras/1')->assertUnauthorized();
         $this->getJson('/api/tutoring/options')->assertUnauthorized();
         $this->getJson('/api/tutoring/requests')->assertUnauthorized();
         $this->postJson('/api/tutoring/requests')->assertUnauthorized();
         $this->postJson('/api/tutoring/requests/1/rating')->assertUnauthorized();
+        $this->patchJson('/api/admin/materias/1/status', ['activa' => false])->assertUnauthorized();
     }
 
     public function test_authenticated_user_can_delete_their_profile_image(): void

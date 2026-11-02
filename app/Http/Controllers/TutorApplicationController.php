@@ -62,6 +62,7 @@ class TutorApplicationController extends Controller
                     ->firstOrFail();
                 $eligibleSubjects = Materia::query()
                     ->whereIn('id', $validated['materias'])
+                    ->where('activa', true)
                     ->whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))
                     ->count();
 

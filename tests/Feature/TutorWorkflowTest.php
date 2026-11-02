@@ -59,6 +59,52 @@ class TutorWorkflowTest extends TestCase
             ->assertJsonValidationErrors('tutor_id');
     }
 
+    public function test_admin_can_deactivate_a_subject_and_students_cannot_request_or_offer_it(): void
+    {
+        $career = Carrera::where('nombre', 'Licenciatura en Informática')->firstOrFail();
+        $student = $this->createUser('ESTUDIANTE', 'student@uas.edu.mx', $career->nombre);
+        $tutor = $this->createUser('TUTOR', 'tutor@uas.edu.mx', $career->nombre);
+        $admin = $this->createUser('ADMIN', 'admin@uas.edu.mx');
+        $subject = Materia::whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))->firstOrFail();
+        $studentToken = $student->createToken('student')->plainTextToken;
+        $adminToken = $admin->createToken('admin')->plainTextToken;
+
+        $this->withToken($adminToken)
+            ->patchJson("/api/admin/materias/{$subject->id}/status", ['activa' => false])
+            ->assertOk()
+            ->assertJsonPath('materia.activa', false);
+        $this->assertDatabaseHas('materias', ['id' => $subject->id, 'activa' => false]);
+
+        $availableSubjectIds = array_column(
+            $this->withFreshToken($studentToken)->getJson('/api/tutoring/options')->json('materias'),
+            'id',
+        );
+        $this->assertNotContains($subject->id, $availableSubjectIds);
+
+        $this->withFreshToken($studentToken)->postJson('/api/tutoring/requests', [
+            'tutor_id' => $tutor->id_usuario,
+            'materia_id' => $subject->id,
+            'fecha_hora' => now()->addDays(2)->format('Y-m-d\TH:i'),
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('materia_id');
+
+        $this->withFreshToken($studentToken)->post('/api/tutoring/application', [
+            'kardex' => UploadedFile::fake()->create('kardex.pdf', 50, 'application/pdf'),
+            'materias' => [$subject->id],
+            'temas_dominados' => 'Fundamentos de la materia.',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('materias');
+
+        $this->withFreshToken($studentToken)
+            ->patchJson("/api/admin/materias/{$subject->id}/status", ['activa' => true])
+            ->assertForbidden();
+
+        $this->withFreshToken($adminToken)
+            ->patchJson("/api/admin/materias/{$subject->id}/status", ['activa' => true])
+            ->assertOk()
+            ->assertJsonPath('materia.activa', true);
+    }
+
     public function test_admin_reviews_private_kardex_and_only_approval_promotes_the_student(): void
     {
         Storage::fake('local');

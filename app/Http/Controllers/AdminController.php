@@ -6,6 +6,7 @@ use App\Models\Carrera;
 use App\Models\Materia;
 use App\Models\Semestre;
 use App\Models\SolicitudTutoria;
+use App\Models\TutorApplication;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -107,6 +108,66 @@ class AdminController extends Controller
         return response()->json([
             'message' => 'Carrera actualizada correctamente.', 
             'carrera' => $carrera
+        ]);
+    }
+
+    public function destroyCarrera(Request $request, $id)
+    {
+        $this->checkAdmin($request);
+
+        return DB::transaction(function () use ($id) {
+            $carrera = Carrera::query()->lockForUpdate()->findOrFail($id);
+
+            if (User::query()->where('carrera', $carrera->nombre)->exists()) {
+                return response()->json([
+                    'message' => 'No se puede eliminar esta carrera porque hay cuentas de usuario asociadas. Puedes desactivarla en su lugar.',
+                ], 409);
+            }
+
+            $materias = Materia::query()
+                ->whereHas('semestre', fn ($query) => $query->where('carrera_id', $carrera->id))
+                ->get(['id', 'nombre']);
+            $materiaIds = $materias->modelKeys();
+
+            if ($materiaIds && TutorApplication::query()->whereHas(
+                'materias',
+                fn ($query) => $query->whereIn('materias.id', $materiaIds),
+            )->exists()) {
+                return response()->json([
+                    'message' => 'No se puede eliminar esta carrera porque hay postulaciones de tutor vinculadas con sus materias. Puedes desactivarla en su lugar.',
+                ], 409);
+            }
+
+            foreach ($materias as $materia) {
+                SolicitudTutoria::query()
+                    ->where('materia_id', $materia->id)
+                    ->whereNull('materia_nombre')
+                    ->update(['materia_nombre' => $materia->nombre]);
+            }
+
+            $carrera->delete();
+
+            return response()->json([
+                'message' => 'La carrera y su plan de estudios se eliminaron correctamente.',
+            ]);
+        });
+    }
+
+    public function updateMateriaStatus(Request $request, Materia $materia)
+    {
+        $this->checkAdmin($request);
+
+        $validated = $request->validate([
+            'activa' => ['required', 'boolean'],
+        ]);
+
+        $materia->update(['activa' => $validated['activa']]);
+
+        return response()->json([
+            'message' => $materia->activa
+                ? 'La materia fue activada correctamente.'
+                : 'La materia fue desactivada correctamente.',
+            'materia' => $materia,
         ]);
     }
 

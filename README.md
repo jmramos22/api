@@ -53,6 +53,10 @@ Las migraciones registran carreras, semestres y materias. Ingeniería en Sistema
 
 Desde el catálogo administrativo, `POST /api/admin/carreras` admite opcionalmente `semestres`, una lista de objetos con `numero` y `materias` (nombres de materias). `PUT /api/admin/carreras/{id}` acepta el mismo campo para reemplazar el plan existente y completar o corregir semestres y materias. Las solicitudes anteriores conservan el nombre de la materia aunque se retire del catálogo.
 
+El administrador puede eliminar una carrera sin usuarios ni postulaciones de tutor vinculadas con sus materias mediante `DELETE /api/admin/carreras/{id}`. Las carreras con esos vínculos no se eliminan para proteger las cuentas y postulaciones; en su lugar, pueden desactivarse. Las solicitudes históricas conservan el nombre de la materia aunque se elimine una carrera.
+
+Cada materia tiene un estado `activa` (por defecto `true`). El administrador puede cambiarlo con `PATCH /api/admin/materias/{materia}/status`, enviando `{ "activa": false }` o `{ "activa": true }`. Las materias inactivas no aparecen entre las opciones de solicitudes de tutoría ni se aceptan al crear solicitudes o postulaciones; desactivarlas no elimina el historial existente.
+
 Un estudiante consulta el estado de su postulación con `GET /api/tutoring/application` y la envía con `POST /api/tutoring/application`, usando multipart/form-data y los campos `kardex` (PDF, JPG o PNG; máximo 10 MB), `materias[]` (uno o más identificadores del plan de su carrera) y `temas_dominados` (máximo 1,000 caracteres). El archivo se conserva en almacenamiento privado y la API valida que las materias pertenezcan a la carrera asociada al perfil. El administrador revisa el kardex y la oferta propuesta con `GET /api/admin/tutor-applications`, descarga el kardex mediante `GET /api/admin/tutor-applications/{id}/kardex` y decide con `PATCH /api/admin/tutor-applications/{id}` enviando `decision` como `APROBADA` o `RECHAZADA`. Solo una aprobación cambia el rol del estudiante a tutor; un rechazo conserva el rol de estudiante. La asignación manual de tutor desde la gestión de usuarios queda bloqueada.
 
 ## Solicitudes de tutoría

@@ -70,6 +70,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/admin/carreras', [AdminController::class, 'listCarreras']);
     Route::post('/admin/carreras', [AdminController::class, 'storeCarrera']);
     Route::put('/admin/carreras/{id}', [AdminController::class, 'updateCarrera']);
+    Route::delete('/admin/carreras/{id}', [AdminController::class, 'destroyCarrera']);
+    Route::patch('/admin/materias/{materia}/status', [AdminController::class, 'updateMateriaStatus']);
     
     Route::get('/admin/users', [AdminController::class, 'listUsers']);
     Route::put('/admin/users/{idUsuario}/rol', [AdminController::class, 'updateUserRole']);

@@ -34,6 +34,7 @@ class SolicitudTutoriaController extends Controller
 
         $materias = Materia::query()
             ->with('semestre:id,carrera_id,numero')
+            ->where('activa', true)
             ->whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))
             ->orderBy('nombre')
             ->get(['id', 'semestre_id', 'nombre']);
@@ -153,11 +154,12 @@ class SolicitudTutoriaController extends Controller
             ->firstOrFail();
         $materiaIsAvailable = Materia::query()
             ->whereKey($validated['materia_id'])
+            ->where('activa', true)
             ->whereHas('semestre', fn ($query) => $query->where('carrera_id', $career->id))
             ->exists();
         if (! $materiaIsAvailable) {
             throw ValidationException::withMessages([
-                'materia_id' => 'Solo puedes solicitar materias de la carrera asociada a tu cuenta.',
+                'materia_id' => 'Selecciona una materia activa de la carrera asociada a tu cuenta.',
             ]);
         }
 
