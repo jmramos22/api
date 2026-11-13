@@ -99,6 +99,11 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        'mongodb' => [
+            'driver' => 'mongodb',
+            'dsn' => env('MONGO_URI', 'mongodb://laravel:secret@taller_api_mongo:27017/tutorias_uas_docs?authSource=tutorias_uas_docs'),
+            'database' => env('MONGO_DATABASE', 'tutorias_uas_docs'),
+        ],
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),

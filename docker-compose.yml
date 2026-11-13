@@ -1,4 +1,4 @@
-name: taller-laravel
+name: taller-laravel-api
 
 x-app-env: &app-env
   APP_ENV: ${APP_ENV:-local}
@@ -25,13 +25,13 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
       target: development
-    image: taller-laravel/app:dev
-    container_name: taller_app
+    image: taller-laravel-api/app:dev
+    container_name: taller_api_app
     restart: unless-stopped
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html:cached
-      - vendor-data:/var/www/html/vendor
+      - /var/www/html/vendor
     environment:
       <<: *app-env
     depends_on:
@@ -43,10 +43,11 @@ services:
         condition: service_started
     networks:
       - taller_net
+    command: sh -c "composer install && php-fpm"
 
   webserver:
     image: nginx:1.27-alpine
-    container_name: taller_nginx
+    container_name: taller_api_nginx
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:80"
@@ -58,21 +59,9 @@ services:
     networks:
       - taller_net
 
-  node:
-    image: node:20-alpine
-    container_name: taller_node
-    working_dir: /var/www/html
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
-    ports:
-      - "${VITE_PORT:-5173}:5173"
-    volumes:
-      - .:/var/www/html:cached
-    networks:
-      - taller_net
-
   db:
     image: postgres:16-alpine
-    container_name: taller_db
+    container_name: taller_api_db
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${DB_DATABASE:-laravel}
@@ -81,7 +70,7 @@ services:
     ports:
       - "${DB_FORWARD_PORT:-5432}:5432"
     volumes:
-      - db-data:/var/lib/postgresql/data
+      - api-db-data:/var/lib/postgresql/data
       - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     healthcheck:
@@ -94,16 +83,16 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: taller_redis
+    container_name: taller_api_redis
     restart: unless-stopped
     volumes:
-      - redis-data:/data
+      - api-redis-data:/data
     networks:
       - taller_net
 
   mongodb:
     image: mongo:7
-    container_name: taller_mongo
+    container_name: taller_api_mongo
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-root}
@@ -114,7 +103,7 @@ services:
     ports:
       - "${MONGO_FORWARD_PORT:-27017}:27017"
     volumes:
-      - mongo-data:/data/db
+      - api-mongo-data:/data/db
       - ./docker/mongo/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
@@ -126,7 +115,7 @@ services:
 
   mailpit:
     image: axllent/mailpit:latest
-    container_name: taller_mailpit
+    container_name: taller_api_mailpit
     restart: unless-stopped
     ports:
       - "${MAILPIT_UI_PORT:-8025}:8025"
@@ -138,13 +127,14 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
       target: development
-    image: taller-laravel/app:dev
-    container_name: taller_queue
+    image: taller-laravel-api/app:dev
+    container_name: taller_api_queue
     restart: unless-stopped
     command: php artisan queue:work --tries=3 --backoff=5
     working_dir: /var/www/html
     volumes:
       - .:/var/www/html:cached
+      - /var/www/html/vendor
     environment:
       <<: *app-env
     depends_on:
@@ -155,10 +145,10 @@ services:
 
 networks:
   taller_net:
+    name: taller_shared_network
     driver: bridge
 
 volumes:
-  db-data:
-  redis-data:
-  vendor-data:
-  mongo-data:
+  api-db-data:
+  api-redis-data:
+  api-mongo-data:

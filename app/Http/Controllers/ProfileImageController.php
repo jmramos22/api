@@ -132,17 +132,17 @@ class ProfileImageController extends Controller
         return null;
     }
 
-    private function manager(): Manager
+  private function manager(): Manager
     {
-        // Forzamos a que lea la conexión desde tu archivo .env
-        $uri = env('MONGODB_URI', 'mongodb://127.0.0.1:27017');
+        
+        $uri = env('MONGO_URI', env('MONGODB_URI', 'mongodb://laravel:secret@taller_api_mongo:27017/?authSource=tutorias_uas_docs'));
         return new Manager($uri);
     }
 
     private function collection(): string
     {
-        // Forzamos a que lea el nombre de la BD desde tu archivo .env
-        $db = env('MONGODB_DATABASE', 'tutorias_uas_docs');
+        // Lee la base de datos configurada en .env
+        $db = env('MONGO_DATABASE', env('MONGODB_DATABASE', 'tutorias_uas_docs'));
         return $db . '.profile_images';
     }
 }
